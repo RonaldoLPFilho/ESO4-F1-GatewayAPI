@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: eso4f1_db
+    restart: always
+    ports:
+      - 5435:5432
+    environment:
+      POSTGRES_USER: userzinho
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: eso4f1_db
+    volumes:
+      - postgres-eso4f1-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-eso4f1-data:
