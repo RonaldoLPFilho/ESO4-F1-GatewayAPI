@@ -15,7 +15,7 @@ import java.util.UUID;
 public class ClassificationResultEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(columnDefinition = "BINARY(16)")
+    @Column
     private UUID id;
     private Instant timestamp;
     private String source;
