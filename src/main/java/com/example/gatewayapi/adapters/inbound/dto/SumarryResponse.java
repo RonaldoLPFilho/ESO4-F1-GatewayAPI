@@ -14,6 +14,7 @@ public record SumarryResponse(
             Double accuracy,
             Double precision,
             Double recall,
-            Double f1
+            Double f1,
+            String testedAt
     ){}
 }

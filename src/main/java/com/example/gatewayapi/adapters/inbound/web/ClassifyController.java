@@ -46,7 +46,7 @@ public class ClassifyController {
                 .flatMap(bytes -> useCase.execute(bytes, fileName))
                 .flatMap(result -> {
                     var record = new ClassificationRecord(
-                            UUID.randomUUID(),
+                            null,
                             Instant.now(),
                             "upload",
                             fileName,

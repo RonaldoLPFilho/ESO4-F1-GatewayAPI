@@ -1,7 +1,6 @@
 package com.example.gatewayapi.application.usecase;
 
 import com.example.gatewayapi.domain.model.ClassificationRecord;
-import com.example.gatewayapi.domain.model.ClassificationResult;
 import com.example.gatewayapi.domain.port.ClassificationResultRepositoryPort;
 import reactor.core.publisher.Flux;
 

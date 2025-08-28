@@ -2,12 +2,14 @@ package com.example.gatewayapi.adapters.outbound.db;
 
 import com.example.gatewayapi.domain.model.ClassificationRecord;
 import com.example.gatewayapi.domain.port.ClassificationResultRepositoryPort;
+import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Instant;
 
+@Component
 public class ClassificationResultRepositoryAdapter implements ClassificationResultRepositoryPort {
 
     private final JpaClassificationResultRepository jpa;
@@ -25,7 +27,7 @@ public class ClassificationResultRepositoryAdapter implements ClassificationResu
 
     private static ClassificationResultEntity toEntity(ClassificationRecord r){
         return new ClassificationResultEntity(
-                r.id(), r.timestamp(), r.source(), r.imageName(),
+                null, r.timestamp(), r.source(), r.imageName(),
                 r.predictedLabel(), r.confidence(), r.modelVersion(), r.requestId()
         );
     }

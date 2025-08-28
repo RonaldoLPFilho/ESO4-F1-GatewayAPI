@@ -14,9 +14,9 @@ import java.util.UUID;
 @Setter(AccessLevel.PACKAGE)
 public class ClassificationResultEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column
+    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
     private Instant timestamp;
     private String source;
     private String imageName;
