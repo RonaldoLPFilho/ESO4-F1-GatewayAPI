@@ -1,5 +1,6 @@
 package com.example.gatewayapi.adapters.outbound.client;
 
+import com.example.gatewayapi.adapters.outbound.dto.VisionMetricsDTO;
 import com.example.gatewayapi.adapters.outbound.dto.VisionPredictResponseDTO;
 import com.example.gatewayapi.domain.model.ClassificationResult;
 import com.example.gatewayapi.domain.port.VisionModelPort;
@@ -56,5 +57,11 @@ public class VisionClient implements VisionModelPort {
                         v.model_version(),
                         v.processing_ms()
                 ));
+    }
+
+    public Mono<VisionMetricsDTO> metrics(){
+        return webClient.get().uri("/metrics")
+                .retrieve()
+                .bodyToMono(VisionMetricsDTO.class);
     }
 }
