@@ -36,6 +36,7 @@ public class ExportController {
                 );
     }
 
+    @GetMapping("/results.csv")
     public Mono<ResponseEntity<byte[]>> csv(){
         return query.all().map(r -> String.join(",",
                 r.timestamp().toString(),
