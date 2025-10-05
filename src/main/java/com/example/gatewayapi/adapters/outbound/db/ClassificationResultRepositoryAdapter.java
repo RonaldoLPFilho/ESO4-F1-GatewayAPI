@@ -21,14 +21,14 @@ public class ClassificationResultRepositoryAdapter implements ClassificationResu
     private static ClassificationRecord toDomain(ClassificationResultEntity e){
         return new ClassificationRecord(
                 e.getId(), e.getTimestamp(), e.getSource(), e.getImageName(),
-                e.getPredictedLabel(), e.getConfidence(), e.getModelVersion(), e.getRequestId()
+                e.getPredictedLabel(), e.getFood() ,e.getConfidence(), e.getModelVersion(), e.getRequestId()
         );
     }
 
     private static ClassificationResultEntity toEntity(ClassificationRecord r){
         return new ClassificationResultEntity(
                 null, r.timestamp(), r.source(), r.imageName(),
-                r.predictedLabel(), r.confidence(), r.modelVersion(), r.requestId()
+                r.predictedLabel(), r.food(),r.confidence(), r.modelVersion(), r.requestId()
         );
     }
 

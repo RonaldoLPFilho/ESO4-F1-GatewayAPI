@@ -21,6 +21,7 @@ public class ClassificationResultEntity {
     private String source;
     private String imageName;
     private String predictedLabel;
+    private String food;
     private Double confidence;
     private String modelVersion;
     private String requestId;

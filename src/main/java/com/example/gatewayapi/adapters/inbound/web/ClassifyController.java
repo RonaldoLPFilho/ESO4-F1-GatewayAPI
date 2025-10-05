@@ -51,13 +51,14 @@ public class ClassifyController {
                             "upload",
                             fileName,
                             result.label(),
+                            result.food(),
                             result.confidence(),
                             result.modelVersion(),
                             requestId
                     );
                     return saveUseCase.execute(record)
                             .thenReturn(ResponseEntity.ok(new ClassifyUploadResponse(
-                                    requestId, fileName, result.label(), result.confidence(),
+                                    requestId, fileName, result.label(), result.food(), result.confidence(),
                                     result.modelVersion(), Instant.now().toString(), "upload"
                             )));
                 });

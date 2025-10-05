@@ -54,6 +54,7 @@ public class VisionClient implements VisionModelPort {
                 .map(v -> new ClassificationResult(
                         v.label(),
                         v.confidence(),
+                        v.food(),
                         v.model_version(),
                         v.processing_ms()
                 ));

@@ -9,6 +9,7 @@ public record ClassificationRecord(
         String source,
         String imageName,
         String predictedLabel, // Saudavel | doente
+        String food,
         Double confidence,
         String modelVersion,
         String requestId
