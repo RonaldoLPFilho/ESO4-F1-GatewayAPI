@@ -7,5 +7,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface JpaClassificationResultRepository  extends JpaRepository<ClassificationResultEntity, UUID> {
+    List<ClassificationResultEntity> findByTimestampBetween(Instant from, Instant to);
     List<ClassificationResultEntity> findByTimestampBetweenOrderByTimestampDesc(Instant start, Instant end);
+
+    List<ClassificationResultEntity> findTop10ByTimestampBetweenOrderByTimestampDesc(Instant from, Instant to);
 }
