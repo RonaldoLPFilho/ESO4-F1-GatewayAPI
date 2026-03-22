@@ -3,6 +3,7 @@ package com.example.gatewayapi.adapters.inbound.web;
 import com.example.gatewayapi.adapters.inbound.dto.ClassifyUploadResponse;
 import com.example.gatewayapi.adapters.inbound.dto.ClassifyWebcamResponse;
 import com.example.gatewayapi.adapters.inbound.dto.WebCamFrameRequest;
+import com.example.gatewayapi.application.usecase.AlertManagementUseCase;
 import com.example.gatewayapi.application.usecase.ClassifyImageUseCase;
 import com.example.gatewayapi.application.usecase.SaveClassificationResultUseCase;
 import com.example.gatewayapi.domain.model.ClassificationRecord;
@@ -22,10 +23,12 @@ import java.util.UUID;
 public class ClassifyController {
     private final ClassifyImageUseCase useCase;
     private final SaveClassificationResultUseCase saveUseCase;
+    private final AlertManagementUseCase alertUseCase;
 
-    public ClassifyController(ClassifyImageUseCase useCase, SaveClassificationResultUseCase saveUseCase) {
+    public ClassifyController(ClassifyImageUseCase useCase, SaveClassificationResultUseCase saveUseCase, AlertManagementUseCase alertUseCase) {
         this.useCase = useCase;
         this.saveUseCase = saveUseCase;
+        this.alertUseCase = alertUseCase;
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -57,6 +60,7 @@ public class ClassifyController {
                             requestId
                     );
                     return saveUseCase.execute(record)
+                            .then(alertUseCase.evaluateAfterClassificationSaved())
                             .thenReturn(ResponseEntity.ok(new ClassifyUploadResponse(
                                     requestId, fileName, result.label(), result.food(), result.confidence(),
                                     result.modelVersion(), Instant.now().toString(), "upload"
@@ -67,16 +71,32 @@ public class ClassifyController {
     @PostMapping(value = "webcam-frame", consumes = MediaType.APPLICATION_JSON_VALUE)
     public Mono<ResponseEntity<ClassifyWebcamResponse>> webcamFrame(@RequestBody WebCamFrameRequest req){
         final String fileName = (req.fileName() != null && !req.fileName().isBlank()) ? req.fileName() : "frame.jpg";
+        final String requestId = UUID.randomUUID().toString();
 
         return Mono.fromCallable(() -> Base64.getDecoder().decode(req.imageBase64()))
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(bytes -> useCase.execute(bytes, fileName))
-                .map(r -> ResponseEntity.ok(new ClassifyWebcamResponse(
-                        r.label(),
-                        r.confidence(),
-                        r.modelVersion(),
-                        Instant.now().toString(),
-                        "webcam"
-                )));
+                .flatMap(result -> {
+                    var record = new ClassificationRecord(
+                            null,
+                            Instant.now(),
+                            "webcam",
+                            fileName,
+                            result.label(),
+                            result.food(),
+                            result.confidence(),
+                            result.modelVersion(),
+                            requestId
+                    );
+                    return saveUseCase.execute(record)
+                            .then(alertUseCase.evaluateAfterClassificationSaved())
+                            .thenReturn(ResponseEntity.ok(new ClassifyWebcamResponse(
+                                    result.label(),
+                                    result.confidence(),
+                                    result.modelVersion(),
+                                    Instant.now().toString(),
+                                    "webcam"
+                            )));
+                });
     }
 }
