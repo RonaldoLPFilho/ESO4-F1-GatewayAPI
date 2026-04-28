@@ -6,7 +6,7 @@ import org.springframework.context.annotation.PropertySource;
 
 @SpringBootApplication
 @PropertySource("classpath:environment.properties")
-@PropertySource("classpath:sensitive.conf")
+@PropertySource(value = "classpath:sensitive.conf", ignoreResourceNotFound = true)
 public class GatewayApiApplication {
 
 	public static void main(String[] args) {

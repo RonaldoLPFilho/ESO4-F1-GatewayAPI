@@ -38,17 +38,20 @@ public class AlertManagementUseCase {
     private final JpaAlertContactRepository contactRepository;
     private final JpaAlertEventRepository eventRepository;
     private final JpaClassificationResultRepository classificationRepository;
+    private final DataLakeFlowUseCase dataLakeFlowUseCase;
 
     public AlertManagementUseCase(
             JpaAlertConfigRepository configRepository,
             JpaAlertContactRepository contactRepository,
             JpaAlertEventRepository eventRepository,
-            JpaClassificationResultRepository classificationRepository
+            JpaClassificationResultRepository classificationRepository,
+            DataLakeFlowUseCase dataLakeFlowUseCase
     ) {
         this.configRepository = configRepository;
         this.contactRepository = contactRepository;
         this.eventRepository = eventRepository;
         this.classificationRepository = classificationRepository;
+        this.dataLakeFlowUseCase = dataLakeFlowUseCase;
     }
 
     public Mono<AlertConfigDTO> getConfig() {
@@ -181,9 +184,14 @@ public class AlertManagementUseCase {
                 force ? null : "Threshold reached"
         ));
 
-        eventRepository.saveAll(events);
+        List<AlertEventEntity> savedEvents = eventRepository.saveAll(events);
         config.setLastTriggeredAt(now);
         configRepository.save(config);
+        dataLakeFlowUseCase.exportAlertEvents(
+                savedEvents.stream().map(this::toEventDTO).toList(),
+                "fazenda-01",
+                "estufa-02"
+        ).block();
     }
 
     private AlertEventEntity buildEvent(

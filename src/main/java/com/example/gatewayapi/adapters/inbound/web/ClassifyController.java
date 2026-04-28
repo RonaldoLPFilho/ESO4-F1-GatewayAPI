@@ -5,6 +5,7 @@ import com.example.gatewayapi.adapters.inbound.dto.ClassifyWebcamResponse;
 import com.example.gatewayapi.adapters.inbound.dto.WebCamFrameRequest;
 import com.example.gatewayapi.application.usecase.AlertManagementUseCase;
 import com.example.gatewayapi.application.usecase.ClassifyImageUseCase;
+import com.example.gatewayapi.application.usecase.DataLakeFlowUseCase;
 import com.example.gatewayapi.application.usecase.SaveClassificationResultUseCase;
 import com.example.gatewayapi.domain.model.ClassificationRecord;
 import org.springframework.http.MediaType;
@@ -24,11 +25,13 @@ public class ClassifyController {
     private final ClassifyImageUseCase useCase;
     private final SaveClassificationResultUseCase saveUseCase;
     private final AlertManagementUseCase alertUseCase;
+    private final DataLakeFlowUseCase dataLakeFlowUseCase;
 
-    public ClassifyController(ClassifyImageUseCase useCase, SaveClassificationResultUseCase saveUseCase, AlertManagementUseCase alertUseCase) {
+    public ClassifyController(ClassifyImageUseCase useCase, SaveClassificationResultUseCase saveUseCase, AlertManagementUseCase alertUseCase, DataLakeFlowUseCase dataLakeFlowUseCase) {
         this.useCase = useCase;
         this.saveUseCase = saveUseCase;
         this.alertUseCase = alertUseCase;
+        this.dataLakeFlowUseCase = dataLakeFlowUseCase;
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -60,6 +63,7 @@ public class ClassifyController {
                             requestId
                     );
                     return saveUseCase.execute(record)
+                            .flatMap(saved -> dataLakeFlowUseCase.exportClassification(saved).thenReturn(saved))
                             .then(alertUseCase.evaluateAfterClassificationSaved())
                             .thenReturn(ResponseEntity.ok(new ClassifyUploadResponse(
                                     requestId, fileName, result.label(), result.food(), result.confidence(),
@@ -89,6 +93,7 @@ public class ClassifyController {
                             requestId
                     );
                     return saveUseCase.execute(record)
+                            .flatMap(saved -> dataLakeFlowUseCase.exportClassification(saved).thenReturn(saved))
                             .then(alertUseCase.evaluateAfterClassificationSaved())
                             .thenReturn(ResponseEntity.ok(new ClassifyWebcamResponse(
                                     result.label(),
