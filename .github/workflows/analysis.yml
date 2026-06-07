@@ -1,0 +1,58 @@
+name: Code & Security Analysis
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  lint-java:
+    name: Lint (Checkstyle)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: temurin
+          cache: maven
+      - run: ./mvnw -q checkstyle:check
+        continue-on-error: true
+
+  vuln-java:
+    name: Vulnerabilidades – OWASP Dependency-Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: temurin
+          cache: maven
+      - name: Cache OWASP NVD database
+        uses: actions/cache@v4
+        with:
+          path: ~/.dependency-check/data
+          key: owasp-nvd-${{ runner.os }}-${{ hashFiles('pom.xml') }}
+          restore-keys: owasp-nvd-${{ runner.os }}-
+      - run: |
+          ./mvnw org.owasp:dependency-check-maven:check \
+            -DfailBuildOnCVSS=11 \
+            -DdataDirectory=$HOME/.dependency-check/data
+        continue-on-error: true
+
+  trivy:
+    name: Vulnerabilidades – Trivy (imagem Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t ecosmart-gateway-api .
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: ecosmart-gateway-api
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+          format: table
