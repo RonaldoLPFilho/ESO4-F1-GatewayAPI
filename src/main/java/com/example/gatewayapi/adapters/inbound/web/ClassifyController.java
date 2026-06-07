@@ -98,6 +98,7 @@ public class ClassifyController {
                             .thenReturn(ResponseEntity.ok(new ClassifyWebcamResponse(
                                     result.label(),
                                     result.confidence(),
+                                    result.food(),
                                     result.modelVersion(),
                                     Instant.now().toString(),
                                     "webcam"

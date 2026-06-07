@@ -5,12 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.handler.timeout.WriteTimeoutHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
@@ -23,6 +26,8 @@ import java.util.concurrent.TimeUnit;
 
 @Component
 public class OpenAiResponsesClient {
+
+    private static final Logger log = LoggerFactory.getLogger(OpenAiResponsesClient.class);
 
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
@@ -59,8 +64,11 @@ public class OpenAiResponsesClient {
 
     public Mono<String> generateMarkdownReport(String instructions, String prompt) {
         if (apiKey == null || apiKey.isBlank()) {
+            log.warn("[OpenAI] OPENAI_API_KEY nao configurada — abortando chamada");
             return Mono.error(new IllegalStateException("OPENAI_API_KEY nao configurada"));
         }
+
+        log.info("[OpenAI] Enviando requisicao para geracao de relatorio | model={}", model);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", model);
@@ -82,7 +90,18 @@ public class OpenAiResponsesClient {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .bodyValue(payload)
                 .retrieve()
+                .onStatus(status -> !status.is2xxSuccessful(), clientResponse ->
+                        clientResponse.bodyToMono(String.class).defaultIfEmpty("").map(body -> {
+                            log.error("[OpenAI] Erro na resposta | status={} body={}", clientResponse.statusCode(), body);
+                            return new WebClientResponseException(
+                                    clientResponse.statusCode().value(),
+                                    clientResponse.statusCode().toString(),
+                                    null, body.getBytes(), null
+                            );
+                        })
+                )
                 .bodyToMono(JsonNode.class)
+                .doOnNext(body -> log.info("[OpenAI] Resposta recebida com sucesso | model={}", model))
                 .map(this::extractOutputText);
     }
 

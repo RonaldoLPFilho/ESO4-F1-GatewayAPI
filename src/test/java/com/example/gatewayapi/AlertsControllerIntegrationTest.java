@@ -30,7 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.username=sa",
         "spring.datasource.password=",
         "vision.baseUrl=http://localhost:8081",
-        "vision.timeoutMillis=5000"
+        "vision.timeoutMillis=5000",
+        "twilio.enabled=false"
 })
 @AutoConfigureMockMvc
 class AlertsControllerIntegrationTest {

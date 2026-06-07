@@ -7,6 +7,8 @@ import com.example.gatewayapi.adapters.inbound.dto.datalake.DataLakeSectorSummar
 import com.example.gatewayapi.adapters.inbound.dto.datalake.DataLakeSummaryResponse;
 import com.example.gatewayapi.adapters.outbound.client.OpenAiResponsesClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -17,6 +19,8 @@ import java.util.Objects;
 
 @Component
 public class DataLakeAiReportUseCase {
+
+    private static final Logger log = LoggerFactory.getLogger(DataLakeAiReportUseCase.class);
 
     private final DataLakeSnapshotUseCase snapshotUseCase;
     private final OpenAiResponsesClient openAiResponsesClient;
@@ -44,19 +48,28 @@ public class DataLakeAiReportUseCase {
                     DataLakeSummaryResponse workingSummary = demonstrativeMode
                             ? buildDemonstrativeSummary(summary, effectiveRequest)
                             : summary;
+                    log.info("[Relatorio] Iniciando geracao | date={} sector={} crop={} tone={} demonstrativeMode={}",
+                            effectiveRequest.date(), effectiveRequest.sector(), effectiveRequest.crop(),
+                            effectiveRequest.tone(), demonstrativeMode);
                     String instructions = buildInstructions(effectiveRequest, demonstrativeMode);
                     String prompt = buildPrompt(workingSummary, effectiveRequest, demonstrativeMode);
                     return openAiResponsesClient.generateMarkdownReport(instructions, prompt)
                             .flatMap(report -> snapshotUseCase.saveReportMarkdown(workingSummary, openAiResponsesClient.model(), report)
-                                    .map(path -> new DataLakeAiReportResponse(
-                                            "success",
-                                            openAiResponsesClient.model(),
-                                            Instant.now().toString(),
-                                            path.toString(),
-                                            report,
-                                            workingSummary
-                                    )))
-                            .onErrorResume(e -> buildLocalDemonstrativeResponse(workingSummary, effectiveRequest, demonstrativeMode, "openai_indisponivel"));
+                                    .map(path -> {
+                                        log.info("[Relatorio] Relatorio da OpenAI salvo em {}", path);
+                                        return new DataLakeAiReportResponse(
+                                                "success",
+                                                openAiResponsesClient.model(),
+                                                Instant.now().toString(),
+                                                path.toString(),
+                                                report,
+                                                workingSummary
+                                        );
+                                    }))
+                            .onErrorResume(e -> {
+                                log.warn("[Relatorio] Falha na OpenAI — ativando fallback local | motivo={}", e.getMessage());
+                                return buildLocalDemonstrativeResponse(workingSummary, effectiveRequest, demonstrativeMode, "openai_indisponivel");
+                            });
                 })
                 .subscribeOn(Schedulers.boundedElastic());
     }
@@ -140,6 +153,7 @@ public class DataLakeAiReportUseCase {
     ) {
         String markdown = buildLocalMarkdown(summary, request, demonstrativeMode, reason);
         String model = demonstrativeMode ? "local-demonstrative" : "local-fallback";
+        log.warn("[Relatorio] Usando fallback local | model={} demonstrativeMode={} reason={}", model, demonstrativeMode, reason);
         return snapshotUseCase.saveReportMarkdown(summary, model, markdown)
                 .map(path -> new DataLakeAiReportResponse(
                         "success",
@@ -201,7 +215,8 @@ public class DataLakeAiReportUseCase {
                 risk,
                 sector,
                 sector,
-                risk.toUpperCase(Locale.ROOT)
+                risk.toUpperCase(Locale.ROOT),
+                sector
         );
     }
 

@@ -13,6 +13,7 @@ import com.example.gatewayapi.adapters.outbound.db.AlertStatus;
 import com.example.gatewayapi.adapters.outbound.db.JpaAlertConfigRepository;
 import com.example.gatewayapi.adapters.outbound.db.JpaAlertContactRepository;
 import com.example.gatewayapi.adapters.outbound.db.JpaAlertEventRepository;
+import com.example.gatewayapi.adapters.outbound.client.TwilioSmsClient;
 import com.example.gatewayapi.adapters.outbound.db.JpaClassificationResultRepository;
 import com.example.gatewayapi.adapters.outbound.db.ClassificationResultEntity;
 import org.springframework.stereotype.Component;
@@ -39,19 +40,22 @@ public class AlertManagementUseCase {
     private final JpaAlertEventRepository eventRepository;
     private final JpaClassificationResultRepository classificationRepository;
     private final DataLakeFlowUseCase dataLakeFlowUseCase;
+    private final TwilioSmsClient twilioSmsClient;
 
     public AlertManagementUseCase(
             JpaAlertConfigRepository configRepository,
             JpaAlertContactRepository contactRepository,
             JpaAlertEventRepository eventRepository,
             JpaClassificationResultRepository classificationRepository,
-            DataLakeFlowUseCase dataLakeFlowUseCase
+            DataLakeFlowUseCase dataLakeFlowUseCase,
+            TwilioSmsClient twilioSmsClient
     ) {
         this.configRepository = configRepository;
         this.contactRepository = contactRepository;
         this.eventRepository = eventRepository;
         this.classificationRepository = classificationRepository;
         this.dataLakeFlowUseCase = dataLakeFlowUseCase;
+        this.twilioSmsClient = twilioSmsClient;
     }
 
     public Mono<AlertConfigDTO> getConfig() {
@@ -167,22 +171,8 @@ public class AlertManagementUseCase {
         List<AlertContactEntity> contacts = contactRepository.findAll();
         List<AlertEventEntity> events = new ArrayList<>();
 
-        events.add(buildEvent(
-                now,
-                sickCount,
-                config,
-                AlertChannel.EMAIL,
-                contacts.stream().anyMatch(c -> !safe(c.getEmail()).isBlank()),
-                force ? null : "Threshold reached"
-        ));
-        events.add(buildEvent(
-                now,
-                sickCount,
-                config,
-                AlertChannel.SMS,
-                contacts.stream().anyMatch(c -> !safe(c.getPhone()).isBlank()),
-                force ? null : "Threshold reached"
-        ));
+        events.add(buildEmailEvent(now, sickCount, config, contacts, force));
+        events.add(buildSmsEvent(now, sickCount, config, contacts, force));
 
         List<AlertEventEntity> savedEvents = eventRepository.saveAll(events);
         config.setLastTriggeredAt(now);
@@ -194,16 +184,17 @@ public class AlertManagementUseCase {
         ).block();
     }
 
-    private AlertEventEntity buildEvent(
+    private AlertEventEntity buildEmailEvent(
             Instant triggeredAt,
             int sickCount,
             AlertConfigEntity config,
-            AlertChannel channel,
-            boolean hasDestination,
-            String context
+            List<AlertContactEntity> contacts,
+            boolean force
     ) {
+        boolean hasDestination = contacts.stream().anyMatch(c -> !safe(c.getEmail()).isBlank());
+        String context = force ? null : "Threshold reached";
         AlertStatus status = hasDestination ? AlertStatus.SENT : AlertStatus.FAILED;
-        String error = hasDestination ? null : "Nenhum contato configurado para " + channel;
+        String error = hasDestination ? null : "Nenhum contato configurado para EMAIL";
         if (context != null && !hasDestination) {
             error = error + " (" + context + ")";
         }
@@ -213,10 +204,94 @@ public class AlertManagementUseCase {
                 sickCount,
                 config.getWindowMinutes(),
                 config.getThresholdSick(),
-                channel,
+                AlertChannel.EMAIL,
                 status,
                 error
         );
+    }
+
+    private AlertEventEntity buildSmsEvent(
+            Instant triggeredAt,
+            int sickCount,
+            AlertConfigEntity config,
+            List<AlertContactEntity> contacts,
+            boolean force
+    ) {
+        List<AlertContactEntity> recipients = contacts.stream()
+                .filter(c -> !safe(c.getPhone()).isBlank())
+                .toList();
+
+        if (recipients.isEmpty()) {
+            String error = "Nenhum contato configurado para SMS";
+            if (!force) {
+                error = error + " (Threshold reached)";
+            }
+            return new AlertEventEntity(
+                    null,
+                    triggeredAt,
+                    sickCount,
+                    config.getWindowMinutes(),
+                    config.getThresholdSick(),
+                    AlertChannel.SMS,
+                    AlertStatus.FAILED,
+                    error
+            );
+        }
+
+        if (!twilioSmsClient.isEnabled()) {
+            return new AlertEventEntity(
+                    null,
+                    triggeredAt,
+                    sickCount,
+                    config.getWindowMinutes(),
+                    config.getThresholdSick(),
+                    AlertChannel.SMS,
+                    AlertStatus.SENT,
+                    null
+            );
+        }
+
+        String message = buildSmsMessage(sickCount, config, force);
+        int sent = 0;
+        List<String> failures = new ArrayList<>();
+
+        for (AlertContactEntity contact : recipients) {
+            TwilioSmsClient.SmsSendResult result = twilioSmsClient.send(contact.getPhone(), message);
+            if (result.success()) {
+                sent++;
+            } else {
+                failures.add(contact.getName() + ": " + result.errorMessage());
+            }
+        }
+
+        AlertStatus status = sent > 0 ? AlertStatus.SENT : AlertStatus.FAILED;
+        String error = null;
+        if (!failures.isEmpty()) {
+            error = sent > 0
+                    ? "Falha parcial (" + sent + "/" + recipients.size() + "): " + String.join("; ", failures)
+                    : String.join("; ", failures);
+        }
+
+        return new AlertEventEntity(
+                null,
+                triggeredAt,
+                sickCount,
+                config.getWindowMinutes(),
+                config.getThresholdSick(),
+                AlertChannel.SMS,
+                status,
+                error
+        );
+    }
+
+    private String buildSmsMessage(int sickCount, AlertConfigEntity config, boolean force) {
+        if (force) {
+            return "EcoSmart: alerta de teste. "
+                    + sickCount + " alimento(s) doente(s) na janela de "
+                    + config.getWindowMinutes() + " min.";
+        }
+        return "EcoSmart: " + sickCount + " alimento(s) doente(s) detectado(s) nos últimos "
+                + config.getWindowMinutes() + " min (limiar: " + config.getThresholdSick() + ").";
     }
 
     private AlertConfigDTO toConfigDTO(AlertConfigEntity entity) {
