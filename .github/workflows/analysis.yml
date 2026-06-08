@@ -50,7 +50,7 @@ jobs:
       - name: Build image
         run: docker build -t ecosmart-gateway-api .
       - name: Scan with Trivy
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ecosmart-gateway-api
           severity: HIGH,CRITICAL
